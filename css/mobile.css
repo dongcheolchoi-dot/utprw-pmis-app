@@ -116,6 +116,13 @@ html, body {
   box-shadow: 0 4px 12px rgba(15,23,42,0.28);
 }
 .nav-btn.nav-photo:active .nav-photo-circle { transform: scale(0.94); }
+/* 현장사진 백그라운드 전송 표시 — 하단 메뉴 바로 위 오른쪽의 작은 알약 (2026-11-21) */
+.upload-pill {
+  position: fixed; right: 10px; bottom: calc(74px + var(--safe-bottom)); z-index: 46;
+  border: none; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 800;
+  background: var(--navy); color: #fff; box-shadow: 0 4px 12px rgba(15,23,42,0.25); cursor: pointer;
+}
+.upload-pill.waiting { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
 .nav-badge {
   position: absolute; top: 1px; right: 18%; background: var(--red); color: #fff;
   font-size: 10px; font-weight: 800; border-radius: 999px; padding: 1px 5px;

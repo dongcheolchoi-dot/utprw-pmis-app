@@ -268,5 +268,5 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden && st.timer) poll(); });
   }
 
-  global.PMIS_NOTIFY = { start, stop, poll, bindEvents, renderSettings, requestPermission, sendTest, rerender: () => { renderSettings(); renderList(); } };
+  global.PMIS_NOTIFY = { notify, start, stop, poll, bindEvents, renderSettings, requestPermission, sendTest, rerender: () => { renderSettings(); renderList(); } };
 })(window);

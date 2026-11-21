@@ -3,10 +3,16 @@
  * - 사진: 후면 카메라(capture=environment) 또는 갤러리, 1600px JPEG 로 줄여 메모리 보호, 첫 사진은 320px 미리보기도 생성
  * - 시각·GPS 자동 첨부 (GPS 실패 시 'No GPS' 로 계속 진행)
  * - 오프라인/통신 실패: IndexedDB(app_state_cache 'obs_queue')에 보관 → 온라인 복귀 시 자동 전송 (clientId 로 중복 방지)
- * - 서버: saveFieldObservation / getFieldObservations (Code_FieldNote.js)
+ * - 서버: saveFieldObservation / addFieldObservationPhoto / getFieldObservations (Code_FieldNote.js)
+ * - 2026-11-21: 사진 최대 20장 + 백그라운드 전송
+ *   저장 버튼 → 기기 대기열에 넣고 창을 닫음 → ① 기록(메모·GPS·미리보기) 저장 ② 사진을 한 장씩 전송
+ *   진행은 하단 메뉴 위 작은 표시(📤 3/20)로만 보이고, 끝나면 🔔 알림. 끊기면 남은 사진만 이어서 전송 (앱 실행 중일 때)
  */
 (function (global) {
-  const MAX_PHOTOS = 6;
+  const MAX_PHOTOS = 20;
+  const JOB_V = 2;   // 대기열 항목 형식: 2 = 기록 먼저 + 사진 한 장씩 (이전 형식은 한 번에 전송)
+  // 다시 보내도 같은 결과인 오류 → 대기열에서 버림
+  const PERMANENT_CODES = ['srv_auth_forbidden', 'FIELD_NOTE_BAD_ID', 'FIELD_NOTE_NOT_FOUND'];
   const QUEUE_KEY = 'obs_queue';
   const st = {
     photos: [],        // [{ full: dataURL, thumb: dataURL }]
@@ -77,7 +83,8 @@
       try {
         const full = await resizeFile(f, 1600, 0.8);
         const thumb = st.photos.length === 0 ? await shrinkDataUrl(full, 320, 0.6) : '';
-        st.photos.push({ full, thumb });
+        const preview = await shrinkDataUrl(full, 240, 0.6);   // 화면 미리보기용 (원본 20장을 그리면 메모리 부족 위험)
+        st.photos.push({ full, thumb, preview });
       } catch (e) {
         toast(T('obs_photo_fail'), 'warning');
       }
@@ -92,7 +99,7 @@
     if (cnt) cnt.textContent = TF('obs_photos_label', { n: st.photos.length, max: MAX_PHOTOS });
     if (!grid) return;
     grid.innerHTML = st.photos.map((p, i) =>
-      '<div class="photo-thumb"><img src="' + p.full + '" alt=""><button type="button" class="photo-del" data-obs-del="' + i + '">✕</button></div>').join('');
+      '<div class="photo-thumb"><img src="' + (p.preview || p.full) + '" alt=""><button type="button" class="photo-del" data-obs-del="' + i + '">✕</button></div>').join('');
   }
 
   // ───────── GPS (멈추지 않게) ─────────
@@ -186,65 +193,127 @@
     st.busy = true;
     const btn = $('obsSubmitBtn');
     if (btn) { btn.disabled = true; btn.textContent = T('obs_saving'); }
-    const payload = {
-      category: st.category,
-      locationText: $('obsLocInput').value.trim(),
-      note: note,
-      lat: st.gps ? st.gps.lat : '',
-      lng: st.gps ? st.gps.lng : '',
-      gpsText: st.gpsText || 'No GPS',
-      capturedAt: st.capturedAt || bangkokNow(),
-      photos: st.photos.map((p) => p.full),
-      thumb: (st.photos[0] && st.photos[0].thumb) || '',
-      clientId: newClientId(),
-      device: global.PMIS_API.getDeviceSummary()
+    const clientId = newClientId();
+    // 2026-11-21: 대기열에 넣고 바로 창을 닫음 → 전송은 백그라운드 (기록 먼저, 사진은 한 장씩)
+    const job = {
+      v: JOB_V,
+      queuedAt: Date.now(),
+      noteId: '',
+      total: st.photos.length,
+      photos: st.photos.map((p) => p.full),   // 보낸 사진은 null 로 비워 기기 저장공간을 줄임
+      failed: 0,
+      meta: {
+        category: st.category,
+        locationText: $('obsLocInput').value.trim(),
+        note: note,
+        lat: st.gps ? st.gps.lat : '',
+        lng: st.gps ? st.gps.lng : '',
+        gpsText: st.gpsText || 'No GPS',
+        capturedAt: st.capturedAt || bangkokNow(),
+        photos: [],
+        expectedPhotos: st.photos.length,
+        thumb: (st.photos[0] && st.photos[0].thumb) || '',
+        clientId: clientId,
+        device: global.PMIS_API.getDeviceSummary()
+      }
     };
     try {
-      if (!navigator.onLine) throw new Error('offline');
-      const res = await global.PMIS_API.call('saveFieldObservation', payload, { timeoutMs: 120000 });
-      if (res && res.success) {
-        toast(res.photoFailed ? T('obs_saved_no_photo') : T('obs_saved'), res.photoFailed ? 'warning' : 'success');
-        resetForm();
-        switchSeg('feed');
-        loadFeed(true);
-      } else if (res && (res.code === 'srv_auth_forbidden' || res.code === 'FIELD_NOTE_EMPTY')) {
-        toast(res.msg || res.error || T('obs_err_save'), 'danger');
-      } else {
-        throw new Error((res && (res.msg || res.error)) || 'server');
-      }
-    } catch (err) {
-      // 오프라인·통신 실패 → 기기 보관, 온라인 복귀 시 자동 전송
       const q = await loadQueue();
-      q.push(Object.assign({ queuedAt: Date.now() }, payload));
+      q.push(job);
       await saveQueue(q);
-      toast(T('obs_queued'), 'info');
+      toast(job.total ? TF('obs_bg_started', { n: job.total }) : T('obs_bg_started_note'), 'info');
       resetForm();
+      close();
     } finally {
       st.busy = false;
       if (btn) { btn.disabled = false; btn.textContent = T('obs_btn_submit'); }
     }
+    flushQueue();
+  }
+
+  // ───────── 백그라운드 전송 (2026-11-21) ─────────
+  // 대기열 전체의 사진 진행 (하단 표시용)
+  function queueProgress(q) {
+    let total = 0, left = 0;
+    q.forEach((j) => {
+      if (j && j.v === JOB_V) { total += j.total; left += j.photos.filter((x) => !!x).length; }
+      else if (j) { const n = Array.isArray(j.photos) ? j.photos.length : 0; total += n; left += n; }
+    });
+    return { jobs: q.length, total, done: total - left };
+  }
+  function renderPill(q, sending) {
+    const el = $('obsUploadPill');
+    if (!el) return;
+    if (!q || !q.length) { el.classList.add('hidden'); return; }
+    const pr = queueProgress(q);
+    el.classList.remove('hidden');
+    el.classList.toggle('waiting', !sending);
+    el.textContent = sending
+      ? (pr.total ? TF('obs_bg_progress', { done: pr.done, total: pr.total }) : T('obs_bg_sending'))
+      : TF('obs_bg_waiting', { n: pr.jobs });
+  }
+  async function refreshPill() { renderPill(await loadQueue(), st.flushing); }
+
+  function isPermanent(res) { return !!(res && PERMANENT_CODES.indexOf(res.code) !== -1); }
+
+  // 대기열 한 건 처리 → 'done' | 'drop' | 'retry'
+  async function runJob(job, persist) {
+    // 이전 형식(사진을 한 번에 보내던 앱 버전에서 남은 항목)
+    if (job.v !== JOB_V) {
+      const res = await global.PMIS_API.call('saveFieldObservation', job, { timeoutMs: 120000 });
+      if (res && res.success) return 'done';
+      if (isPermanent(res) || (res && res.code === 'FIELD_NOTE_EMPTY')) return 'drop';
+      return 'retry';
+    }
+    // ① 기록 먼저 (같은 clientId 재전송은 서버가 같은 기록 번호를 돌려줌)
+    if (!job.noteId) {
+      const res = await global.PMIS_API.call('saveFieldObservation', job.meta, { timeoutMs: 90000 });
+      if (res && res.success && res.noteId) { job.noteId = res.noteId; await persist(); }
+      else if (isPermanent(res) || (res && res.code === 'FIELD_NOTE_EMPTY' && !job.total)) return 'drop';
+      else return 'retry';
+    }
+    // ② 사진 한 장씩
+    for (let i = 0; i < job.photos.length; i++) {
+      if (!job.photos[i]) continue;
+      const res = await global.PMIS_API.call('addFieldObservationPhoto', { noteId: job.noteId, index: i + 1, dataUrl: job.photos[i] }, { timeoutMs: 90000 });
+      if (res && res.success) { job.photos[i] = null; await persist(); continue; }
+      if (isPermanent(res)) return 'drop';
+      if (res && (res.code === 'FIELD_NOTE_BAD_PHOTO' || res.code === 'FIELD_NOTE_BAD_INDEX')) { job.photos[i] = null; job.failed++; await persist(); continue; }
+      return 'retry';
+    }
+    return 'done';
   }
 
   async function flushQueue() {
-    if (st.flushing || !navigator.onLine || !global.PMIS_API.getAuthToken()) return;
+    if (st.flushing || !navigator.onLine || !global.PMIS_API.getAuthToken()) { refreshPill(); return; }
     st.flushing = true;
+    let doneJobs = 0, donePhotos = 0, failedPhotos = 0;
     try {
-      let q = await loadQueue();
-      if (!q.length) return;
-      const remain = [];
-      let sent = 0;
-      for (const item of q) {
-        try {
-          const res = await global.PMIS_API.call('saveFieldObservation', item, { timeoutMs: 120000 });
-          if (res && res.success) sent++;
-          else if (res && (res.code === 'srv_auth_forbidden' || res.code === 'FIELD_NOTE_EMPTY')) { /* 다시 보내도 실패 → 버림 */ }
-          else remain.push(item);
-        } catch (e) { remain.push(item); }
+      const q = await loadQueue();
+      renderPill(q, true);
+      const persist = async () => { await saveQueue(q); renderPill(q, true); };
+      while (q.length) {
+        const job = q[0];
+        let out;
+        try { out = await runJob(job, persist); } catch (e) { out = 'retry'; }
+        if (out === 'retry') break;
+        q.shift();
+        await saveQueue(q);
+        if (out === 'done') {
+          doneJobs++;
+          donePhotos += (job.v === JOB_V ? job.total - (job.failed || 0) : (Array.isArray(job.photos) ? job.photos.length : 0));
+          failedPhotos += (job.failed || 0);
+        }
       }
-      await saveQueue(remain);
-      if (sent) { toast(TF('obs_queue_sent', { n: sent }), 'success'); if (st.feed) loadFeed(true); }
+      if (doneJobs) {
+        const body = TF('obs_bg_done_body', { n: doneJobs, p: donePhotos }) + (failedPhotos ? ' ' + TF('obs_bg_done_failed', { n: failedPhotos }) : '');
+        if (global.PMIS_NOTIFY && global.PMIS_NOTIFY.notify) global.PMIS_NOTIFY.notify(T('obs_bg_done_title'), body, { tab: 'rit', tag: 'pmis-obs' });
+        else toast(T('obs_bg_done_title') + ' — ' + body, 'success');
+        if (st.feed) loadFeed(true);
+      }
     } finally {
       st.flushing = false;
+      await refreshPill();
     }
   }
 
@@ -322,12 +391,19 @@
       });
     }
     window.addEventListener('online', () => setTimeout(flushQueue, 3000));
+    window.addEventListener('offline', () => refreshPill());
+    // 2026-11-21: 남은 사진 이어 보내기 — 앱으로 돌아올 때, 1분마다, 앱 시작 직후(로그인 복원 대기), 표시 누르면 즉시
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(flushQueue, 1500); });
+    setInterval(() => { if (!st.flushing) flushQueue(); }, 60000);
+    setTimeout(flushQueue, 8000);
+    on('obsUploadPill', 'click', () => flushQueue());
   }
 
   function rerender() {
     renderPhotos();
     if (st.feed) renderFeed();
     refreshQueueLine();
+    refreshPill();
   }
 
   global.PMIS_OBS = { bindEvents, open, flushQueue, rerender };
