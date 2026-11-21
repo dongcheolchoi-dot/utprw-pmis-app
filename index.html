@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="U-Tapao PMIS">
+  <title>U-Tapao PMIS Mobile</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="./css/mobile.css">
+</head>
+<body>
+  <!-- LOGIN VIEW -->
+  <section id="loginView" class="login-shell">
+    <div class="login-top-tools">
+      <div class="lang-bar">
+        <button type="button" class="lang-pill-btn" data-lang="ko">KO</button>
+        <button type="button" class="lang-pill-btn" data-lang="en">EN</button>
+        <button type="button" class="lang-pill-btn" data-lang="th">TH</button>
+      </div>
+      <button type="button" id="loginSettingsBtn" class="btn-ghost-light">⚙ <span data-i18n="btn_settings">설정</span></button>
+    </div>
+    <div class="login-card">
+      <div class="login-brand">
+        <img src="./assets/icon-192.png" alt="Logo" class="login-logo">
+        <h1 data-i18n="login_title">현장 PMIS 로그인</h1>
+        <p data-i18n="app_subtitle">국제공항 확장공사 감리단</p>
+      </div>
+      <div id="loginAutoStatus" class="auto-status hidden"></div>
+      <form id="loginForm">
+        <div class="field-group">
+          <label for="loginId" data-i18n="login_id">아이디 (User ID)</label>
+          <input id="loginId" type="text" class="field-input" autocomplete="username" autocapitalize="none" required>
+        </div>
+        <div class="field-group">
+          <label for="loginPw" data-i18n="login_pw">비밀번호 (Password)</label>
+          <input id="loginPw" type="password" class="field-input" autocomplete="current-password" required>
+        </div>
+        <div class="remember-row">
+          <label class="remember-chk-wrap">
+            <input id="loginRememberChk" type="checkbox" checked>
+            <span data-i18n="login_remember">이 기기에서 로그인 유지</span>
+          </label>
+          <select id="loginRememberDays" class="remember-days">
+            <option value="1" data-i18n="login_days_1">1일</option>
+            <option value="7" selected data-i18n="login_days_7">7일</option>
+          </select>
+        </div>
+        <button type="submit" id="loginSubmitBtn" class="btn-primary-full" data-i18n="login_btn">로그인</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- MAIN WORKSPACE VIEW -->
+  <section id="mainView" class="hidden">
+    <header class="app-header">
+      <div class="header-row">
+        <div>
+          <div class="header-title" data-i18n="app_title">U-Tapao PMIS 현장 모바일</div>
+          <div class="header-sub">
+            <span id="netStatusBadge" class="net-badge online">🟢 ONLINE</span>
+            <span id="headerUserChip"></span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="lang-bar">
+            <button type="button" class="lang-pill-btn" data-lang="ko">KO</button>
+            <button type="button" class="lang-pill-btn" data-lang="en">EN</button>
+            <button type="button" class="lang-pill-btn" data-lang="th">TH</button>
+          </div>
+          <button type="button" id="headerBellBtn" class="icon-btn" title="Notifications">🔔<span id="headerBellBadge" class="bell-badge hidden"></span></button>
+          <button type="button" id="headerRefreshBtn" class="icon-btn" title="Refresh">↻<span id="topQueueBadge" class="queue-dot hidden"></span></button>
+          <button type="button" id="headerSettingsBtn" class="icon-btn" title="Settings">⚙</button>
+          <button type="button" id="headerLogoutBtn" class="icon-btn" title="Logout">⏻</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-body">
+      <!-- TAB 1: RIT FIELD INSPECTION -->
+      <section id="tab-rit">
+        <div id="ritQueueBanner" class="queue-banner hidden"></div>
+        <div id="ritCacheBanner" class="info-banner hidden"></div>
+        <div class="search-bar">
+          <input id="ritSearchInput" type="search" class="field-input" data-i18n-ph="rit_search_ph" placeholder="RIT 번호, 제목, 위치 검색...">
+        </div>
+        <div id="ritTaskList"></div>
+      </section>
+
+      <!-- TAB 2: ATTENDANCE -->
+      <section id="tab-att" class="hidden">
+        <div class="card">
+          <div class="card-top">
+            <strong data-i18n="att_title">현장 출퇴근 관리</strong>
+            <span id="attStatusBadge" class="badge badge-slate">-</span>
+          </div>
+          <div id="attLiveClock" class="att-clock">--:--:--</div>
+          <div class="att-grid">
+            <div class="att-box"><div class="lbl" data-i18n="att_clock_in_time">출근 시각</div><div id="attClockInTime" class="val">-</div></div>
+            <div class="att-box"><div class="lbl" data-i18n="att_clock_out_time">퇴근 시각</div><div id="attClockOutTime" class="val">-</div></div>
+            <div class="att-box"><div class="lbl" data-i18n="att_work_hours">근무 시간</div><div id="attWorkHours" class="val">-</div></div>
+          </div>
+          <div id="attSummaryWrap" class="field-group hidden">
+            <label for="attWorkSummaryInput" data-i18n="att_summary_label">금일 주요 업무 내용 (퇴근 시 필수)</label>
+            <textarea id="attWorkSummaryInput" rows="3" class="field-input" data-i18n-ph="att_summary_ph"></textarea>
+          </div>
+          <button type="button" id="attClockInBtn" class="btn-green-full" data-i18n="att_btn_in">출근하기 (Clock-In)</button>
+          <button type="button" id="attClockOutBtn" class="btn-red-full hidden" data-i18n="att_btn_out">퇴근하기 (Clock-Out)</button>
+        </div>
+
+        <div class="card">
+          <div class="briefing-title" data-i18n="att_monthly_title">이번 달 근무 요약</div>
+          <div class="stat-grid">
+            <div class="stat-card"><div id="attMonDays" class="stat-val">0</div><div class="stat-lbl" data-i18n="att_m_days">출근일수</div></div>
+            <div class="stat-card"><div id="attMonHours" class="stat-val">0</div><div class="stat-lbl" data-i18n="att_m_hours">총 근무(h)</div></div>
+            <div class="stat-card"><div id="attMonOt" class="stat-val">0</div><div class="stat-lbl" data-i18n="att_m_ot">OT(h)</div></div>
+            <div class="stat-card"><div id="attMonMissing" class="stat-val">0</div><div class="stat-lbl" data-i18n="att_m_missing">미퇴근</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: MY TASKS -->
+      <section id="tab-tasks" class="hidden">
+        <div id="myTasksCacheBanner" class="info-banner hidden"></div>
+        <div id="myTasksFilterBar" class="filter-scroll"></div>
+        <div id="myTasksList"></div>
+      </section>
+
+      <!-- TAB 4: DAILY AI BRIEFING -->
+      <section id="tab-daily" class="hidden">
+        <div id="dailyCacheBanner" class="info-banner hidden"></div>
+        <div class="card">
+          <div class="field-group" style="margin-bottom:4px;">
+            <label for="dailyDateInput" data-i18n="daily_date_label">조회 일자</label>
+            <input id="dailyDateInput" type="date" class="field-input">
+          </div>
+          <div class="small-muted" style="margin-top:6px;" data-i18n="daily_recent_dates">최근 브리핑 일자</div>
+          <div id="dailyDateChips" class="date-chip-row"></div>
+          <div id="dailyFallbackNote" class="info-banner hidden" style="margin-bottom:0;"></div>
+        </div>
+        <div id="dailyContentArea"></div>
+      </section>
+
+      <!-- TAB 5: FIELD MAP (내 위치·작업구역·검측원 위치) -->
+      <section id="tab-map" class="hidden">
+        <div class="fm-toolbar">
+          <button type="button" id="fmMyLocBtn" class="btn-outline-sm">📍 <span data-i18n="fm_my_location">내 위치</span></button>
+          <button type="button" id="fmInspBtn" class="btn-outline-sm active">👷 <span data-i18n="fm_inspectors">검측원 위치</span></button>
+          <button type="button" id="fmRefreshBtn" class="btn-outline-sm">🔄 <span data-i18n="fm_refresh_loc">위치 갱신</span></button>
+          <label class="fm-share-toggle">
+            <input id="fmShareToggle" type="checkbox">
+            <span data-i18n="fm_share">위치 공유</span>
+          </label>
+        </div>
+        <div id="fmShareInputs" class="fm-share-inputs hidden">
+          <input id="fmWorkLocInput" type="text" class="field-input" maxlength="120" data-i18n-ph="fm_work_loc_ph">
+          <input id="fmNoteInput" type="text" class="field-input" maxlength="300" data-i18n-ph="fm_note_ph">
+        </div>
+        <div id="fmStatusBanner" class="info-banner hidden"></div>
+        <div id="fmMyZoneCard" class="card fm-myzone hidden"></div>
+        <div id="fmMapCanvas" class="fm-map"></div>
+        <div id="fmInfoPanel" class="card fm-info hidden"></div>
+        <div id="fmPeopleList"></div>
+      </section>
+    </main>
+
+    <!-- BOTTOM TAB BAR -->
+    <nav class="bottom-nav">
+      <button type="button" class="nav-btn active" data-nav-tab="rit">
+        <span class="nav-ico">📋</span>
+        <span data-i18n="nav_rit">현장검측</span>
+      </button>
+      <button type="button" class="nav-btn" data-nav-tab="att">
+        <span class="nav-ico">⏰</span>
+        <span data-i18n="nav_att">출퇴근</span>
+      </button>
+      <button type="button" class="nav-btn" data-nav-tab="tasks">
+        <span class="nav-ico">📥</span>
+        <span data-i18n="nav_tasks">결재함</span>
+        <span id="navTasksBadge" class="nav-badge hidden"></span>
+      </button>
+      <!-- 현장 사진(특이사항) 바로가기: 하단 큰 버튼 (탭 전환 없이 촬영 모달을 엶, 2026-11-21) -->
+      <button type="button" id="navObsBtn" class="nav-btn nav-photo">
+        <span class="nav-photo-circle">📸</span>
+        <span data-i18n="nav_photo">현장사진</span>
+      </button>
+      <button type="button" class="nav-btn" data-nav-tab="daily">
+        <span class="nav-ico">🤖</span>
+        <span data-i18n="nav_daily">일일보고</span>
+      </button>
+      <button type="button" class="nav-btn" data-nav-tab="map">
+        <span class="nav-ico">🗺</span>
+        <span data-i18n="nav_map">현장지도</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- RIT INSPECTION INPUT MODAL -->
+  <div id="inspModal" class="modal-backdrop hidden">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h2 id="inspSheetRitNo">RIT</h2>
+        <button type="button" id="inspCloseBtn" class="btn-outline-sm">✕</button>
+      </div>
+      <div id="inspSheetSubject" class="fw-bold" style="margin-bottom:4px;"></div>
+      <div id="inspSheetMeta" class="small-muted" style="margin-bottom:12px;"></div>
+
+      <div class="field-group">
+        <label for="inspResultCode" data-i18n="rit_result_code">검측 판정 코드</label>
+        <select id="inspResultCode" class="form-select">
+          <option value="1 - Approved" data-i18n="rit_rc_1">1 - Approved (합격)</option>
+          <option value="2 - Approved with Comments" data-i18n="rit_rc_2">2 - Approved with Comments (조건부 합격)</option>
+          <option value="3 - Rejected" data-i18n="rit_rc_3">3 - Rejected (반려)</option>
+          <option value="4 - Canceled" data-i18n="rit_rc_4">4 - Canceled (취소)</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+          <label for="inspRemarks" style="margin:0;" data-i18n="rit_remarks">검측 의견 (Remarks)</label>
+          <button type="button" id="inspStdRemarkBtn" class="btn-outline-sm" data-i18n="rit_btn_std_remark">표준 코멘트</button>
+        </div>
+        <textarea id="inspRemarks" rows="3" class="field-input" data-i18n-ph="rit_remarks_ph"></textarea>
+      </div>
+
+      <div class="field-group">
+        <label id="inspPhotoCount">Site Photos (0/10)</label>
+        <input id="inspCameraInput" type="file" accept="image/*" capture="environment" class="hidden">
+        <input id="inspAlbumInput" type="file" accept="image/*" multiple class="hidden">
+        <div class="photo-btn-row">
+          <button type="button" id="inspCameraBtn" class="btn-outline-sm">📷 <span data-i18n="rit_btn_camera">카메라 촬영</span></button>
+          <button type="button" id="inspAlbumBtn" class="btn-outline-sm">🖼 <span data-i18n="rit_btn_album">갤러리 선택</span></button>
+        </div>
+        <div id="inspPhotoGrid" class="photo-grid"></div>
+      </div>
+
+      <div class="field-group">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+          <label style="margin:0;" data-i18n="rit_sign_label">검측원 전자서명</label>
+          <button type="button" id="inspSignClearBtn" class="btn-outline-sm" data-i18n="rit_sign_clear">서명 지우기</button>
+        </div>
+        <div class="sig-box">
+          <canvas id="inspSignatureCanvas" class="sig-canvas"></canvas>
+        </div>
+      </div>
+
+      <div class="modal-footer-btns">
+        <button type="button" id="inspCancelBtn" class="btn-outline-sm" data-i18n="btn_cancel">취소</button>
+        <button type="button" id="inspSubmitBtn" class="btn-primary-full" data-i18n="btn_submit">검측 결과 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FIELD OBSERVATION MODAL (현장 특이사항 촬영·공유) -->
+  <div id="obsModal" class="modal-backdrop hidden">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h2>📸 <span data-i18n="obs_title">현장 특이사항</span></h2>
+        <button type="button" id="obsCloseBtn" class="btn-outline-sm">✕</button>
+      </div>
+      <div class="obs-seg">
+        <button type="button" class="filter-pill active" data-obs-seg="new" data-i18n="obs_seg_new">새 기록</button>
+        <button type="button" class="filter-pill" data-obs-seg="feed" data-i18n="obs_seg_feed">공유 피드</button>
+      </div>
+
+      <div id="obsNewPane">
+        <div id="obsQueueLine" class="queue-banner hidden"></div>
+        <div class="field-group">
+          <label data-i18n="obs_category">구분</label>
+          <div class="obs-cat-row">
+            <button type="button" class="obs-cat-btn active" data-obs-cat="SAFETY">🦺 <span data-i18n="obs_cat_safety">안전 / HSE</span></button>
+            <button type="button" class="obs-cat-btn" data-obs-cat="GENERAL">🔎 <span data-i18n="obs_cat_general">일반 모니터링</span></button>
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="obsLocInput" data-i18n="obs_location">위치 / 구역</label>
+          <input id="obsLocInput" type="text" class="field-input" maxlength="200" data-i18n-ph="obs_location_ph">
+        </div>
+        <div class="field-group">
+          <label for="obsNoteInput" data-i18n="obs_note">특이사항 내용</label>
+          <textarea id="obsNoteInput" rows="3" class="field-input" maxlength="2000" data-i18n-ph="obs_note_ph"></textarea>
+        </div>
+        <div class="field-group">
+          <label id="obsPhotoCount">Photos (0/6)</label>
+          <input id="obsCameraInput" type="file" accept="image/*" capture="environment" class="hidden">
+          <input id="obsAlbumInput" type="file" accept="image/*" multiple class="hidden">
+          <div class="photo-btn-row">
+            <button type="button" id="obsCameraBtn" class="btn-outline-sm">📷 <span data-i18n="rit_btn_camera">카메라 촬영</span></button>
+            <button type="button" id="obsAlbumBtn" class="btn-outline-sm">🖼 <span data-i18n="rit_btn_album">갤러리 선택</span></button>
+          </div>
+          <div id="obsPhotoGrid" class="photo-grid"></div>
+        </div>
+        <div class="obs-meta-box">
+          <div id="obsTimeLine" class="small-muted">🕒 -</div>
+          <div class="obs-gps-row">
+            <span id="obsGpsLine" class="small-muted">📍 -</span>
+            <button type="button" id="obsGpsRetryBtn" class="btn-outline-sm" data-i18n="obs_gps_retry">GPS 다시</button>
+          </div>
+        </div>
+        <div class="modal-footer-btns">
+          <button type="button" class="btn-outline-sm" data-obs-seg="feed" data-i18n="obs_seg_feed">공유 피드</button>
+          <button type="button" id="obsSubmitBtn" class="btn-primary-full" data-i18n="obs_btn_submit">저장 · 공유</button>
+        </div>
+      </div>
+
+      <div id="obsFeedPane" class="hidden">
+        <div class="obs-feed-bar">
+          <button type="button" class="filter-pill active" data-obs-filter="ALL" data-i18n="tasks_all">전체</button>
+          <button type="button" class="filter-pill" data-obs-filter="SAFETY" data-i18n="obs_cat_safety">안전 / HSE</button>
+          <button type="button" class="filter-pill" data-obs-filter="GENERAL" data-i18n="obs_cat_general">일반 모니터링</button>
+          <button type="button" id="obsFeedRefreshBtn" class="btn-outline-sm">↻</button>
+        </div>
+        <div id="obsFeedList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION LIST MODAL (🔔) -->
+  <div id="notifyModal" class="modal-backdrop hidden">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h2>🔔 <span data-i18n="nt_list_title">알림</span></h2>
+        <div style="display:flex; gap:6px;">
+          <button type="button" id="notifyReadAllBtn" class="btn-outline-sm" data-i18n="nt_read_all">모두 읽음</button>
+          <button type="button" id="notifyCloseBtn" class="btn-outline-sm">✕</button>
+        </div>
+      </div>
+      <div id="notifyList"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="modal-backdrop hidden">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h2 data-i18n="settings_title">앱 설정 및 연결 점검</h2>
+        <button type="button" id="settingsCloseBtn" class="btn-outline-sm">✕</button>
+      </div>
+      <div class="field-group">
+        <label for="settingsApiUrlInput" data-i18n="settings_api_url">GAS 웹앱 API 주소 (/exec 또는 /dev)</label>
+        <input id="settingsApiUrlInput" type="url" class="field-input">
+        <div class="small-muted" style="margin-top:4px;" data-i18n="settings_api_hint"></div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <button type="button" id="settingsPingBtn" class="btn-outline-sm" data-i18n="settings_ping">연결 테스트</button>
+        <button type="button" id="settingsSwReloadBtn" class="btn-outline-sm" data-i18n="settings_sw_update">앱 캐시 새로고침</button>
+      </div>
+      <div id="settingsPingResult" class="ping-out"></div>
+
+      <!-- 🔔 알림 설정 (사용자별 저장: DB_User_Prefs) -->
+      <div class="nt-settings">
+        <div class="briefing-title">🔔 <span data-i18n="nt_settings_title">알림 설정</span></div>
+        <div class="nt-perm-row">
+          <span class="small-muted" data-i18n="nt_perm_label">기기 알림 권한</span>
+          <span id="ntPermState" class="badge badge-slate">-</span>
+          <button type="button" id="ntPermBtn" class="btn-outline-sm hidden" data-i18n="nt_perm_request">🔔 권한 요청</button>
+        </div>
+        <div id="ntPermHint" class="small-muted" style="margin-bottom:6px;"></div>
+        <label class="nt-toggle"><input id="ntRitChk" type="checkbox"> <span data-i18n="nt_opt_rit">내게 배정된 RIT 검측</span></label>
+        <label class="nt-toggle"><input id="ntTaskChk" type="checkbox"> <span data-i18n="nt_opt_task">신규 검토·결재 문서 (MAR·RFA·RFI·공문)</span></label>
+        <label class="nt-toggle"><input id="ntRemindChk" type="checkbox"> <span data-i18n="nt_opt_remind">마감 임박·지남 미결 (하루 1회)</span></label>
+        <label class="nt-toggle"><input id="ntSoundChk" type="checkbox"> <span data-i18n="nt_opt_sound">소리</span></label>
+        <label class="nt-toggle"><input id="ntVibrateChk" type="checkbox"> <span data-i18n="nt_opt_vibrate">진동</span></label>
+        <div class="nt-perm-row">
+          <label for="ntPollSel" class="small-muted" data-i18n="nt_opt_poll">확인 주기</label>
+          <select id="ntPollSel" class="form-select-sm">
+            <option value="3">3 min</option><option value="5">5 min</option><option value="10">10 min</option><option value="30">30 min</option>
+          </select>
+          <button type="button" id="ntTestBtn" class="btn-outline-sm" data-i18n="nt_test_btn">테스트 알림</button>
+        </div>
+      </div>
+
+      <!-- ⬆️ 앱 업데이트 (설치형 앱: 화면 자동 업데이트 / 새 앱 설치 안내) -->
+      <div class="nt-settings">
+        <div class="briefing-title">⬆️ <span data-i18n="upd_title">앱 업데이트</span></div>
+        <div id="updVersionText" class="small-muted"></div>
+        <div id="updStatusText" class="upd-status"></div>
+        <div class="nt-perm-row">
+          <button type="button" id="updCheckBtn" class="btn-outline-sm" data-i18n="upd_check_btn">업데이트 확인</button>
+          <button type="button" id="updApplyBtn" class="btn-outline-sm hidden" data-i18n="upd_btn_apply">지금 적용</button>
+          <button type="button" id="updApkBtn" class="btn-outline-sm hidden" data-i18n="upd_btn_apk">새 앱 내려받기</button>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <button type="button" id="settingsSaveBtn" class="btn-primary-full" data-i18n="btn_save">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastBox" class="toast-box hidden"></div>
+
+  <script src="./js/config.js"></script>
+  <script src="./js/version.js"></script>
+  <script src="./js/i18n.js"></script>
+  <script src="./js/db.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/rit.js"></script>
+  <script src="./vendor/leaflet/leaflet.js"></script>
+  <script src="./js/fieldmap.js"></script>
+  <script src="./js/obs.js"></script>
+  <script src="./js/notify.js"></script>
+  <script src="./js/updater.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
