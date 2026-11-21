@@ -1,5 +1,5 @@
 /* U-Tapao PMIS Mobile Service Worker — Offline-First App Shell */
-const CACHE_NAME = 'pmis-mobile-shell-v0.9.3-5';
+const CACHE_NAME = 'pmis-mobile-shell-v0.9.3-6';
 const APP_SHELL_FILES = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const APP_SHELL_FILES = [
   './js/rit.js',
   './js/fieldmap.js',
   './js/obs.js',
+  './js/dailydetail.js',
   './js/notify.js',
   './js/updater.js',
   './js/app.js',

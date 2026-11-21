@@ -122,6 +122,25 @@ html, body {
   border: none; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 800;
   background: var(--navy); color: #fff; box-shadow: 0 4px 12px rgba(15,23,42,0.25); cursor: pointer;
 }
+/* 일일보고 상세 카드 (웹 통합 보고서 휴대폰 보기, 2026-11-21) */
+.dd-head { font-weight: 800; font-size: 15px; color: var(--navy); margin: 14px 0 8px; }
+.dd-tabs { margin-bottom: 8px; }
+.dd-card { padding: 12px; }
+.dd-docno { font-size: 11px; text-align: right; word-break: break-all; }
+.dd-loc { font-weight: 700; font-size: 14px; color: #1e293b; margin: 2px 0 4px; word-break: break-word; }
+.dd-act { font-size: 13.5px; color: #334155; white-space: pre-line; line-height: 1.45; word-break: break-word; }
+.dd-time { font-size: 12.5px; font-weight: 700; color: #475569; margin-bottom: 2px; }
+.dd-issue { font-size: 12.5px; color: #92400e; background: #fffbeb; border-radius: 6px; padding: 5px 8px; margin-top: 6px; }
+.dd-safety { font-size: 12.5px; color: #991b1b; background: #fef2f2; border-radius: 6px; padding: 5px 8px; margin-top: 6px; }
+.dd-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+.dd-foot .chip-link { margin-left: auto; }
+.dd-res { margin-top: 6px; line-height: 1.5; }
+.dd-summary { font-size: 13px; }
+.dd-weather { margin-bottom: 6px; color: #334155; }
+.dd-totals { display: flex; gap: 16px; font-weight: 700; margin-bottom: 6px; }
+.dd-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.dd-chip { font-size: 11.5px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; border-radius: 999px; padding: 2px 8px; }
+.dd-chip.eq { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
 .upload-pill.waiting { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
 .nav-badge {
   position: absolute; top: 1px; right: 18%; background: var(--red); color: #fff;

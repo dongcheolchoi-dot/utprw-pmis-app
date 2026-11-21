@@ -459,8 +459,11 @@
     }
 
     const contentEl = document.getElementById('dailyContentArea');
+    // 2026-11-21: AI 요약 아래에 문서별 상세(작업 위치·내용) — js/dailydetail.js
+    const loadDetail = () => { if (global.PMIS_DAILYDETAIL && dailyData.date) global.PMIS_DAILYDETAIL.load(dailyData.date); };
     if (!dailyData.exists) {
-      contentEl.innerHTML = '<div class="empty-box">' + escHtml(PMIS_I18N.tf('daily_empty', { date: dailyData.date || '-' })) + '</div>';
+      contentEl.innerHTML = '<div class="empty-box">' + escHtml(PMIS_I18N.tf('daily_empty', { date: dailyData.date || '-' })) + '</div><div id="dailyDetailArea"></div>';
+      loadDetail();
       return;
     }
 
@@ -487,7 +490,9 @@
       <div class="card briefing-card safety">
         <div class="briefing-title">🦺 ${escHtml(PMIS_I18N.t('daily_patrol_title'))}</div>
         <ul class="briefing-list">${formatBullets(patrolText)}</ul>
-      </div>`;
+      </div>
+      <div id="dailyDetailArea"></div>`;
+    loadDetail();
   }
 
   // ───────── Settings Modal ─────────
