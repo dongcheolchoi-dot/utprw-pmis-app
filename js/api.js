@@ -58,6 +58,15 @@
     return (isCap ? 'Capacitor-' : 'PWA-') + (isAndroid ? 'Android' : (isIOS ? 'iOS' : 'Web'));
   }
 
+  // 접속 IP: 공개 IP 조회 서비스(ipify)에 주소만 물어본다 — 사용자·프로젝트 정보는 보내지 않음. 실패하면 빈 값
+  let clientIp = '';
+  try {
+    fetch('https://api.ipify.org?format=json', { credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => { clientIp = String((j && j.ip) || ''); })
+      .catch(() => {});
+  } catch (e) { /* IP 없이 진행 */ }
+
   function postRaw(action, payload, timeoutMs) {
     const controller = new AbortController();
     const ms = timeoutMs || global.PMIS_CONFIG.RPC_TIMEOUT_MS;
@@ -93,7 +102,7 @@
     if (!res || res.success !== false) return false;
     const code = String(res.code || '');
     const msg = String(res.msg || res.error || '');
-    return code === 'srv_auth_required' || code === 'AUTH_REQUIRED' || /세션이 만료|인증 정보가 없/.test(msg);
+    return code === 'srv_auth_required' || code === 'AUTH_REQUIRED' || /AUTH_REQUIRED|세션이 만료|인증 정보가 없/.test(msg);
   }
 
   async function trySilentRenew() {
@@ -142,6 +151,7 @@
     setRememberToken,
     getStoredUserSnapshot,
     getDeviceSummary,
+    getClientIp: () => clientIp,
     trySilentRenew
   };
 })(window);

@@ -100,7 +100,7 @@
     try {
       const res = await global.PMIS_API.call('resumeRememberedLogin', {
         rememberToken: rmb,
-        clientInfo: { deviceSummary: global.PMIS_API.getDeviceSummary() },
+        clientInfo: { deviceSummary: global.PMIS_API.getDeviceSummary(), ip: global.PMIS_API.getClientIp() },
         silent: false
       }, { noRenew: true, timeoutMs: 25000 });
 
@@ -151,6 +151,7 @@
         id, pw,
         clientInfo: {
           deviceSummary: global.PMIS_API.getDeviceSummary(),
+          ip: global.PMIS_API.getClientIp(),
           screenInfo: window.innerWidth + 'x' + window.innerHeight,
           lang: PMIS_I18N.getLang(),
           rememberDays: rememberDays
@@ -267,6 +268,22 @@
     }
   }
 
+  function acquireClockInGeo() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve(null); return; }
+      let done = false;
+      const finish = (v) => { if (!done) { done = true; clearTimeout(guard); resolve(v); } };
+      const guard = setTimeout(() => finish(null), 9000);
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => finish({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+          () => finish(null),
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+        );
+      } catch (e) { finish(null); }
+    });
+  }
+
   async function doClock(type) {
     if (!navigator.onLine) {
       toast(PMIS_I18N.t('att_offline_err'), 'danger');
@@ -281,6 +298,11 @@
         return;
       }
       payload.workSummary = sum;
+    } else {
+      // 출근 위치·접속 IP (거부·실패해도 출근은 그대로 기록)
+      toast(PMIS_I18N.t('att_clock_in_busy'), 'info');
+      payload.geo = await acquireClockInGeo();
+      payload.ip = global.PMIS_API.getClientIp();
     }
     try {
       const res = await global.PMIS_API.call('recordAttendance', payload);

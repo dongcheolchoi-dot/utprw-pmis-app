@@ -5,4 +5,4 @@
  *              들어간 화면을 배포할 때만 올린다. 설치 앱이 이보다 낮으면 "새 앱 설치" 안내만 표시
  * ⚠️ 직접 고치지 말고 mobile_app/tools/publish_web_update.js 로 올린다 (zip·Drive 업로드와 함께 갱신)
  */
-window.PMIS_WEB_BUNDLE = { build: 4, label: '0.9.3-w4', minNative: 0 };
+window.PMIS_WEB_BUNDLE = { build: 5, label: '0.9.3-w5', minNative: 0 };
