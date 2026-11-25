@@ -476,8 +476,12 @@
 
     const fbEl = document.getElementById('dailyFallbackNote');
     if (fbEl) {
-      fbEl.textContent = dailyData.fallbackUsed ? PMIS_I18N.tf('daily_fallback_note', { date: dailyData.date }) : '';
-      fbEl.classList.toggle('hidden', !dailyData.fallbackUsed);
+      const st = dailyData.exists && dailyData.stale;
+      const notes = [];
+      if (dailyData.fallbackUsed) notes.push(PMIS_I18N.tf('daily_fallback_note', { date: dailyData.date }));
+      if (st && st[PMIS_I18N.getLang()]) notes.push(PMIS_I18N.tf('daily_stale_note', { w: st.dwr, q: st.drq }));
+      fbEl.textContent = notes.join(' ');
+      fbEl.classList.toggle('hidden', !notes.length);
     }
 
     const contentEl = document.getElementById('dailyContentArea');
